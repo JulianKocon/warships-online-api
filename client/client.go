@@ -250,3 +250,34 @@ func waitForValidInput(c *client) string {
 	}
 	return input
 }
+
+func (c *client) CheckOpponentsDesc() (*app.StatusResponse, error) {
+	url, err := url.JoinPath(c.serverAddr, "/api/game/desc")
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("X-Auth-Token", c.token)
+	resp, err := c.client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	gameStatusResponse := &app.StatusResponse{}
+	if err := json.Unmarshal(body, gameStatusResponse); err != nil {
+		return nil, err
+	}
+	c.status = *gameStatusResponse
+
+	return gameStatusResponse, nil
+}

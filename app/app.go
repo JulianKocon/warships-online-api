@@ -33,6 +33,7 @@ type client interface {
 	UpdateBoard(*StatusResponse)
 	RefreshSession()
 	Fire() error
+	CheckOpponentsDesc() (*StatusResponse, error)
 }
 type app struct {
 	c client
@@ -52,6 +53,7 @@ func (a *app) Run() {
 
 func (a *app) checkStatus() {
 	showInfo := true
+	go a.refreshToken()
 	for {
 		time.Sleep(1 * time.Second)
 		resp, err := a.c.Status()
@@ -75,8 +77,19 @@ func (a *app) checkStatus() {
 	}
 }
 
+func (a *app) refreshToken() {
+	t := time.NewTicker(time.Second * 10)
+	for range t.C {
+		a.c.RefreshSession()
+	}
+}
+
 func (a *app) showGameInfoOnce(resp *StatusResponse, showInfo *bool) {
 	if *showInfo {
+		resp, err := a.c.CheckOpponentsDesc()
+		if err != nil {
+			log.Fatal(err)
+		}
 		a.c.UpdateBoard(resp)
 		fmt.Printf("Nick: %v \n", resp.Nick)
 		fmt.Printf("Description: %v \n", resp.Desc)
