@@ -107,7 +107,6 @@ func setBoardConfig(c *client) {
 	cfg.BorderColor = color.BgRed
 	cfg.RulerTextColor = color.BgYellow
 	cfg.ShipColor = color.FgGreen
-	cfg.MissChar = 'O'
 	c.board = gui.New(cfg)
 }
 
@@ -138,6 +137,12 @@ func (c *client) Status() (*app.StatusResponse, error) {
 		return nil, err
 	}
 	c.status = *gameStatusResponse
+
+	if len(c.status.OppShots) > 0 {
+		for _, shot := range c.status.OppShots {
+			c.board.HitOrMiss(gui.Left, shot)
+		}
+	}
 	return gameStatusResponse, nil
 }
 
@@ -210,11 +215,12 @@ func (c *client) Fire() error {
 	} else if respMap["result"] == "sunk" {
 		c.board.CreateBorder(gui.Right, input)
 		c.board.Display()
+		c.Fire()
 	} else {
 		c.board.Set(gui.Right, input, gui.Miss)
 		c.board.Display()
 	}
-	fmt.Print(respMap["result"])
+
 	return nil
 }
 
