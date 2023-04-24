@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"encoding/json"
+	"flag"
 	"fmt"
 	"io"
 	"log"
@@ -39,8 +40,17 @@ func New(addr string, t time.Duration) *client {
 }
 
 func (c *client) InitGame() error {
+	targetNickPtr := flag.String("target_nick", "", "Specify the target nickname")
+	nickPtr := flag.String("nick", "", "Specify your nickname")
+	descPtr := flag.String("desc", "", "Specify your nickname")
+	flag.Parse()
+	fmt.Print(*targetNickPtr)
+
 	initBody := app.BasicRequestBody{
-		Wpbot: true,
+		Wpbot:      false,
+		TargetNick: *targetNickPtr,
+		Nick:       *nickPtr,
+		Desc:       *descPtr,
 	}
 	jsonBody, err := json.Marshal(initBody)
 	if err != nil {
@@ -61,7 +71,13 @@ func (c *client) InitGame() error {
 	if err != nil {
 		return err
 	}
-
+	if resp.StatusCode != 200 {
+		body, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return err
+		}
+		fmt.Print(string(body))
+	}
 	defer resp.Body.Close()
 	c.token = resp.Header.Get("X-Auth-Token")
 	return nil
@@ -229,7 +245,7 @@ func waitForValidInput(c *client) string {
 	input = strings.TrimSpace(input)
 	pattern := regexp.MustCompile(`[A-J][1-9]|10`)
 	if !pattern.MatchString(input) {
-		fmt.Print("wrong cordinates\n Type again:")
+		fmt.Print(gui.ErrInvalidCoord, "\nType again:")
 		waitForValidInput(c)
 	}
 	return input

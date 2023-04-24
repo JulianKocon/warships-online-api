@@ -3,13 +3,14 @@ package app
 import (
 	"fmt"
 	"log"
+	"os"
 	"time"
 )
 
 type StatusResponse struct {
 	Desc           string   `json:"desc"`
-	GameStatus     string   `json:"game_status"`
-	LastGameStatus string   `json:"last_game_status"`
+	GameStatus     string   `json:"game_status"`      //ended
+	LastGameStatus string   `json:"last_game_status"` //win //lose
 	Nick           string   `json:"nick"`
 	OppDesc        string   `json:"opp_desc"`
 	OppShots       []string `json:"opp_shots"`
@@ -57,18 +58,21 @@ func (a *app) checkStatus() {
 		if err != nil {
 			log.Fatal(err)
 		}
-		if resp.GameStatus == "" {
-			log.Fatal(err)
-		} else if resp.GameStatus == "game_in_progress" {
-			if resp.ShouldFire {
-				a.showGameInfoOnce(resp, &showInfo)
-				if err := a.c.Fire(); err != nil {
-					log.Fatal(err)
+		switch resp.GameStatus {
+		case "game_in_progress":
+			{
+				if resp.ShouldFire {
+					a.showGameInfoOnce(resp, &showInfo)
+					if err := a.c.Fire(); err != nil {
+						log.Fatal(err)
+					}
 				}
 			}
+		case "ended":
+			fmt.Print("You ", resp.LastGameStatus, "!!!")
+			os.Exit(1)
 		}
 	}
-
 }
 
 func (a *app) showGameInfoOnce(resp *StatusResponse, showInfo *bool) {
