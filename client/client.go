@@ -44,14 +44,15 @@ func (c *client) InitGame() error {
 	nickPtr := flag.String("nick", "", "Specify your nickname")
 	descPtr := flag.String("desc", "", "Specify your nickname")
 	flag.Parse()
-	fmt.Print(*targetNickPtr)
 
+	wpbot := *targetNickPtr == ""
 	initBody := app.BasicRequestBody{
-		Wpbot:      false,
+		Wpbot:      wpbot,
 		TargetNick: *targetNickPtr,
 		Nick:       *nickPtr,
 		Desc:       *descPtr,
 	}
+
 	jsonBody, err := json.Marshal(initBody)
 	if err != nil {
 		return err
@@ -229,6 +230,7 @@ func (c *client) Fire() error {
 		c.board.Display()
 		c.Fire()
 	} else if respMap["result"] == "sunk" {
+		c.board.Set(gui.Right, input, gui.Hit)
 		c.board.CreateBorder(gui.Right, input)
 		c.board.Display()
 		c.Fire()
