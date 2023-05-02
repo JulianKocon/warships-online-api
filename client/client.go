@@ -42,12 +42,15 @@ func New(addr string, t time.Duration) *client {
 func (c *client) InitGame() error {
 	targetNickPtr := flag.String("target_nick", "", "Specify the target nickname")
 	nickPtr := flag.String("nick", "", "Specify your nickname")
-	descPtr := flag.String("desc", "", "Specify your nickname")
+	descPtr := flag.String("desc", "", "Specify your description")
+	wpbotPtr := flag.Bool("wpbot", false, "Whether to challenge WP bot")
+	app.Abandon = flag.Bool("abandon", false, "Whether to abandon game after start")
 	flag.Parse()
 
-	wpbot := *targetNickPtr == ""
+	log.Print(*wpbotPtr)
+	log.Print(*targetNickPtr)
 	initBody := app.BasicRequestBody{
-		Wpbot:      wpbot,
+		Wpbot:      *wpbotPtr,
 		TargetNick: *targetNickPtr,
 		Nick:       *nickPtr,
 		Desc:       *descPtr,
@@ -73,11 +76,7 @@ func (c *client) InitGame() error {
 		return err
 	}
 	if resp.StatusCode != 200 {
-		body, err := io.ReadAll(resp.Body)
-		if err != nil {
-			return err
-		}
-		fmt.Print(string(body))
+		return app.NewAppError(resp.StatusCode, "Something went wrong")
 	}
 	defer resp.Body.Close()
 	c.token = resp.Header.Get("X-Auth-Token")
@@ -168,29 +167,31 @@ func (c *client) UpdateBoard(status *app.StatusResponse) {
 	c.board.Display()
 }
 
-func (c *client) RefreshSession() {
+func (c *client) RefreshSession() error {
 	url, err := url.JoinPath(c.serverAddr, "/api/game/refresh")
 	if err != nil {
-		return
+		return err
 	}
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
-		return
+		return err
 	}
 	req.Header.Set("X-Auth-Token", c.token)
 	resp, err := c.client.Do(req)
 	if err != nil {
-		return
+		return err
 	}
 	if resp.StatusCode != 200 {
 		log.Print(resp.StatusCode)
+		return app.NewAppError(resp.StatusCode, "Something went wrong")
 	}
 	defer resp.Body.Close()
-
+	return nil
 }
 func (c *client) Fire() error {
+	var input string
 	fmt.Print("It's your turn:")
-	input := waitForValidInput(c)
+	input = waitForValidInput(c)
 
 	reqBody := map[string]string{
 		"coord": input,
@@ -282,4 +283,24 @@ func (c *client) CheckOpponentsDesc() (*app.StatusResponse, error) {
 	c.status = *gameStatusResponse
 
 	return gameStatusResponse, nil
+}
+
+func (c *client) Abandon() error {
+	url, err := url.JoinPath(c.serverAddr, "/api/game/abandon")
+	if err != nil {
+		return err
+	}
+
+	req, err := http.NewRequest("DELETE", url, nil)
+	if err != nil {
+		return err
+	}
+	req.Header.Set("X-Auth-Token", c.token)
+	_, err = c.client.Do(req)
+	if err != nil {
+		return err
+	}
+	log.Print("Game abandoned")
+	os.Exit(1)
+	return nil
 }

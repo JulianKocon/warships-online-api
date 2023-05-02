@@ -31,10 +31,12 @@ type client interface {
 	Board() ([]string, error)
 	Status() (*StatusResponse, error)
 	UpdateBoard(*StatusResponse)
-	RefreshSession()
+	RefreshSession() error
 	Fire() error
 	CheckOpponentsDesc() (*StatusResponse, error)
+	Abandon() error
 }
+
 type app struct {
 	c client
 }
@@ -44,14 +46,23 @@ func New(c client) *app {
 		c,
 	}
 }
+
+var (
+	Abandon *bool
+)
+
 func (a *app) Run() {
 	a.c.InitGame()
-	a.c.Board()
+	_, err := a.c.Board()
+	if err != nil {
+		log.Fatal(err)
+	}
 	a.checkStatus()
 
 }
 
 func (a *app) checkStatus() {
+	timer := StartWaitingRoomTimer()
 	showInfo := true
 	go a.refreshToken()
 	for {
@@ -63,6 +74,14 @@ func (a *app) checkStatus() {
 		switch resp.GameStatus {
 		case "game_in_progress":
 			{
+				timer.Stop()
+				log.Print("Game in progress")
+				if *Abandon {
+					log.Print("Abandon")
+					if err := a.c.Abandon(); err != nil {
+						log.Fatal(err)
+					}
+				}
 				if resp.ShouldFire {
 					a.showGameInfoOnce(resp, &showInfo)
 					if err := a.c.Fire(); err != nil {
@@ -80,7 +99,9 @@ func (a *app) checkStatus() {
 func (a *app) refreshToken() {
 	t := time.NewTicker(time.Second * 10)
 	for range t.C {
-		a.c.RefreshSession()
+		if err := a.c.RefreshSession(); err != nil {
+			log.Fatal(err)
+		}
 	}
 }
 
@@ -97,4 +118,11 @@ func (a *app) showGameInfoOnce(resp *StatusResponse, showInfo *bool) {
 		fmt.Printf("Opponent's description : %v \n", resp.OppDesc)
 		*showInfo = false
 	}
+}
+
+func StartWaitingRoomTimer() *time.Timer {
+	return time.AfterFunc(3*time.Second, func() {
+		log.Print("No activity for 3 seconds. Exiting program.")
+		os.Exit(1)
+	})
 }
