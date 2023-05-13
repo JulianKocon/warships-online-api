@@ -37,6 +37,7 @@ type client interface {
 	CheckOpponentsDesc() (*StatusResponse, error)
 	GetActivePlayersList() error
 	WaitForValidOpponent() string
+	ShowAccuracy()
 }
 
 type app struct {
@@ -66,7 +67,6 @@ func (a *app) Run() error {
 	if err := a.c.InitGame(); err != nil {
 		return err
 	}
-
 	a.c.Board()
 	a.checkStatus()
 	return nil

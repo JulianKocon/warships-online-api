@@ -19,6 +19,11 @@ import (
 	"main.go/app"
 )
 
+type shots struct {
+	hits   int
+	misses int
+}
+
 type client struct {
 	client     *http.Client
 	serverAddr string
@@ -26,7 +31,9 @@ type client struct {
 	board      *gui.Board
 	status     app.StatusResponse
 	reader     bufio.Reader
+	shots      shots
 }
+
 type waitingPlayer struct {
 	GameStatus string `json:"game_status"`
 	Nick       string `json:"nick"`
@@ -187,6 +194,7 @@ func (c *client) RefreshSession() {
 
 }
 func (c *client) Fire() error {
+	c.ShowAccuracy()
 	fmt.Print("It's your turn:")
 	input := waitForValidInput(c)
 
@@ -224,15 +232,18 @@ func (c *client) Fire() error {
 	}
 
 	if respMap["result"] == "hit" {
+		c.shots.hits++
 		c.board.Set(gui.Right, input, gui.Hit)
 		c.board.Display()
 		c.Fire()
 	} else if respMap["result"] == "sunk" {
+		c.shots.hits++
 		c.board.Set(gui.Right, input, gui.Hit)
 		c.board.CreateBorder(gui.Right, input)
 		c.board.Display()
 		c.Fire()
 	} else {
+		c.shots.misses++
 		c.board.Set(gui.Right, input, gui.Miss)
 		c.board.Display()
 	}
@@ -331,4 +342,13 @@ func (c *client) WaitForValidOpponent() string {
 	}
 	log.Print("Invalid opponent. Type again:")
 	return c.WaitForValidOpponent()
+}
+
+func (c *client) ShowAccuracy() {
+	if c.shots.hits == 0 && c.shots.misses == 0 {
+		log.Println("Accuracy: 0%")
+		return
+	}
+	accuracy := float64(c.shots.hits) / float64(c.shots.hits+c.shots.misses) * 100
+	log.Printf("Accuracy: %.2f%%", accuracy)
 }
