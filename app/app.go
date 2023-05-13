@@ -1,6 +1,7 @@
 package app
 
 import (
+	"flag"
 	"fmt"
 	"log"
 	"os"
@@ -34,7 +35,10 @@ type client interface {
 	RefreshSession()
 	Fire() error
 	CheckOpponentsDesc() (*StatusResponse, error)
+	GetActivePlayersList() error
+	WaitForValidOpponent() string
 }
+
 type app struct {
 	c client
 }
@@ -44,11 +48,46 @@ func New(c client) *app {
 		c,
 	}
 }
-func (a *app) Run() {
-	a.c.InitGame()
+
+var (
+	TargetNickPtr   *string
+	NickPtr         *string
+	DescPtr         *string
+	Wpbot           *bool
+	ActiveOpponents []string
+)
+
+func (a *app) Run() error {
+	loadFlags()
+	if !*Wpbot {
+		go a.refreshList()
+		a.c.WaitForValidOpponent()
+	}
+	if err := a.c.InitGame(); err != nil {
+		return err
+	}
+
 	a.c.Board()
 	a.checkStatus()
+	return nil
+}
 
+func loadFlags() {
+	TargetNickPtr = flag.String("target_nick", "", "Specify the target nickname")
+	NickPtr = flag.String("nick", "", "Specify your nickname")
+	DescPtr = flag.String("desc", "", "Specify your nickname")
+	Wpbot = flag.Bool("wpbot", false, "Specify if you want to play with WP bot")
+	flag.Parse()
+}
+
+func (a *app) refreshList() error {
+	t := time.NewTicker(time.Second * 5)
+	for range t.C {
+		if err := a.c.GetActivePlayersList(); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (a *app) checkStatus() {

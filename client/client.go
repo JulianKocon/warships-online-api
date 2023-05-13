@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"bytes"
 	"encoding/json"
-	"flag"
 	"fmt"
 	"io"
 	"log"
@@ -28,6 +27,10 @@ type client struct {
 	status     app.StatusResponse
 	reader     bufio.Reader
 }
+type waitingPlayer struct {
+	GameStatus string `json:"game_status"`
+	Nick       string `json:"nick"`
+}
 
 func New(addr string, t time.Duration) *client {
 	return &client{
@@ -40,17 +43,12 @@ func New(addr string, t time.Duration) *client {
 }
 
 func (c *client) InitGame() error {
-	targetNickPtr := flag.String("target_nick", "", "Specify the target nickname")
-	nickPtr := flag.String("nick", "", "Specify your nickname")
-	descPtr := flag.String("desc", "", "Specify your nickname")
-	flag.Parse()
-
-	wpbot := *targetNickPtr == ""
+	wpbot := *app.Wpbot
 	initBody := app.BasicRequestBody{
 		Wpbot:      wpbot,
-		TargetNick: *targetNickPtr,
-		Nick:       *nickPtr,
-		Desc:       *descPtr,
+		TargetNick: *app.TargetNickPtr,
+		Nick:       *app.NickPtr,
+		Desc:       *app.DescPtr,
 	}
 
 	jsonBody, err := json.Marshal(initBody)
@@ -282,4 +280,55 @@ func (c *client) CheckOpponentsDesc() (*app.StatusResponse, error) {
 	c.status = *gameStatusResponse
 
 	return gameStatusResponse, nil
+}
+
+func (c *client) GetActivePlayersList() error {
+
+	url, err := url.JoinPath(c.serverAddr, "/api/game/list")
+	if err != nil {
+		return err
+	}
+	resp, err := http.Get(url)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return err
+	}
+
+	var waitingPlayer []waitingPlayer
+	if err := json.Unmarshal([]byte(body), &waitingPlayer); err != nil {
+		return err
+	}
+	for _, opponent := range waitingPlayer {
+		if opponent.GameStatus == "waiting" {
+			opponent := opponent.Nick
+			app.ActiveOpponents = append(app.ActiveOpponents, opponent)
+		}
+	}
+
+	if waitingPlayer == nil {
+		log.Println("No active players.")
+	} else {
+		log.Println("Active players:")
+		for _, item := range waitingPlayer {
+			log.Println(item.Nick)
+		}
+	}
+
+	return nil
+}
+
+func (c *client) WaitForValidOpponent() string {
+	input, _ := c.reader.ReadString('\n')
+	for _, opponent := range app.ActiveOpponents {
+		if opponent == input {
+			return input
+		}
+	}
+	log.Print("Invalid opponent. Type again:")
+	return c.WaitForValidOpponent()
 }
