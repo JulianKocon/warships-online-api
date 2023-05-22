@@ -51,6 +51,10 @@ func New(addr string, t time.Duration) *client {
 
 func (c *client) InitGame() error {
 	wpbot := *app.Wpbot
+	if len(*app.NickPtr) < 2 || len(*app.NickPtr) > 10 {
+		return fmt.Errorf("nick must be between 2 and 10 characters")
+	}
+
 	initBody := app.BasicRequestBody{
 		Wpbot:      wpbot,
 		TargetNick: *app.TargetNickPtr,
