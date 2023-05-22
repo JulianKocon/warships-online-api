@@ -17,6 +17,7 @@ import (
 	color "github.com/fatih/color"
 	gui "github.com/grupawp/warships-lightgui/v2"
 	"main.go/app"
+	"main.go/flags"
 )
 
 type shots struct {
@@ -50,16 +51,12 @@ func New(addr string, t time.Duration) *client {
 }
 
 func (c *client) InitGame() error {
-	wpbot := *app.Wpbot
-	if len(*app.NickPtr) < 2 || len(*app.NickPtr) > 10 {
-		return fmt.Errorf("nick must be between 2 and 10 characters")
-	}
 
 	initBody := app.BasicRequestBody{
-		Wpbot:      wpbot,
-		TargetNick: *app.TargetNickPtr,
-		Nick:       *app.NickPtr,
-		Desc:       *app.DescPtr,
+		Wpbot:      *flags.WpbotFlag,
+		TargetNick: *flags.TargetNickFlag,
+		Nick:       *flags.NickFlag,
+		Desc:       *flags.DescFlag,
 	}
 
 	jsonBody, err := json.Marshal(initBody)
@@ -103,6 +100,7 @@ func (c *client) Board() ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	req.Header.Set("X-Auth-Token", c.token)
 	resp, err := c.client.Do(req)
 	if err != nil {
@@ -119,8 +117,8 @@ func (c *client) Board() ([]string, error) {
 	if err := json.Unmarshal(body, &boardData); err != nil {
 		return nil, err
 	}
-	setBoardConfig(c)
 
+	setBoardConfig(c)
 	c.board.Import(boardData["board"])
 	c.board.Display()
 	return c.board.Export(gui.Left), nil
@@ -146,11 +144,13 @@ func (c *client) Status() (*app.StatusResponse, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	req.Header.Set("X-Auth-Token", c.token)
 	resp, err := c.client.Do(req)
 	if err != nil {
 		return nil, err
 	}
+
 	defer resp.Body.Close()
 
 	body, err := io.ReadAll(resp.Body)
@@ -169,6 +169,7 @@ func (c *client) Status() (*app.StatusResponse, error) {
 			c.board.HitOrMiss(gui.Left, shot)
 		}
 	}
+
 	return gameStatusResponse, nil
 }
 
@@ -182,21 +183,25 @@ func (c *client) RefreshSession() {
 	if err != nil {
 		return
 	}
+
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
 		return
 	}
+
 	req.Header.Set("X-Auth-Token", c.token)
 	resp, err := c.client.Do(req)
 	if err != nil {
 		return
 	}
+
 	if resp.StatusCode != 200 {
 		log.Print(resp.StatusCode)
 	}
 	defer resp.Body.Close()
 
 }
+
 func (c *client) Fire() error {
 	c.ShowAccuracy()
 	fmt.Print("It's your turn:")
@@ -276,6 +281,7 @@ func (c *client) CheckOpponentsDesc() (*app.StatusResponse, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	req.Header.Set("X-Auth-Token", c.token)
 	resp, err := c.client.Do(req)
 	if err != nil {
@@ -298,8 +304,7 @@ func (c *client) CheckOpponentsDesc() (*app.StatusResponse, error) {
 }
 
 func (c *client) GetActivePlayersList() error {
-
-	url, err := url.JoinPath(c.serverAddr, "/api/game/list")
+	url, err := url.JoinPath(c.serverAddr, "/api/lobby")
 	if err != nil {
 		return err
 	}
@@ -318,6 +323,7 @@ func (c *client) GetActivePlayersList() error {
 	if err := json.Unmarshal([]byte(body), &waitingPlayer); err != nil {
 		return err
 	}
+
 	for _, opponent := range waitingPlayer {
 		if opponent.GameStatus == "waiting" {
 			opponent := opponent.Nick
@@ -325,8 +331,8 @@ func (c *client) GetActivePlayersList() error {
 		}
 	}
 
-	if waitingPlayer == nil {
-		log.Println("No active players.")
+	if len(waitingPlayer) == 0 {
+		log.Println("No active players")
 	} else {
 		log.Println("Active players:")
 		for _, item := range waitingPlayer {

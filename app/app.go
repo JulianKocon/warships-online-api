@@ -1,11 +1,12 @@
 package app
 
 import (
-	"flag"
 	"fmt"
 	"log"
 	"os"
 	"time"
+
+	"main.go/flags"
 )
 
 type StatusResponse struct {
@@ -41,27 +42,28 @@ type client interface {
 }
 
 type app struct {
-	c client
+	c                client
+	GoroutineStopper chan bool
 }
 
 func New(c client) *app {
 	return &app{
 		c,
+		make(chan bool, 1),
 	}
 }
 
 var (
-	TargetNickPtr   *string
-	NickPtr         *string
-	DescPtr         *string
-	Wpbot           *bool
 	ActiveOpponents []string
 )
 
 func (a *app) Run() error {
-	loadFlags()
-	if !*Wpbot {
-		go a.refreshList()
+	flags.LoadFlags()
+	if err := flags.ValidateFlags(); err != nil {
+		return err
+	}
+	if !*flags.WpbotFlag {
+		go a.refreshList(a.GoroutineStopper)
 		a.c.WaitForValidOpponent()
 	}
 	if err := a.c.InitGame(); err != nil {
@@ -72,27 +74,25 @@ func (a *app) Run() error {
 	return nil
 }
 
-func loadFlags() {
-	TargetNickPtr = flag.String("target_nick", "", "Specify the target nickname")
-	NickPtr = flag.String("nick", "", "Specify your nickname")
-	DescPtr = flag.String("desc", "", "Specify your nickname")
-	Wpbot = flag.Bool("wpbot", false, "Specify if you want to play with WP bot")
-	flag.Parse()
-}
-
-func (a *app) refreshList() error {
+func (a *app) refreshList(stopper <-chan bool) error {
 	t := time.NewTicker(time.Second * 5)
-	for range t.C {
-		if err := a.c.GetActivePlayersList(); err != nil {
-			return err
+	switch {
+	case <-stopper:
+		t.Stop()
+		return nil
+	default:
+		for range t.C {
+			if err := a.c.GetActivePlayersList(); err != nil {
+				return err
+			}
 		}
+		return nil
 	}
-	return nil
 }
 
 func (a *app) checkStatus() {
 	showInfo := true
-	go a.refreshToken()
+	go a.refreshToken(a.GoroutineStopper)
 	for {
 		time.Sleep(1 * time.Second)
 		resp, err := a.c.Status()
@@ -116,10 +116,17 @@ func (a *app) checkStatus() {
 	}
 }
 
-func (a *app) refreshToken() {
+func (a *app) refreshToken(stopper <-chan bool) {
 	t := time.NewTicker(time.Second * 10)
-	for range t.C {
-		a.c.RefreshSession()
+
+	select {
+	case <-stopper:
+		t.Stop()
+		return
+	default:
+		for range t.C {
+			a.c.RefreshSession()
+		}
 	}
 }
 
@@ -136,4 +143,8 @@ func (a *app) showGameInfoOnce(resp *StatusResponse, showInfo *bool) {
 		fmt.Printf("Opponent's description : %v \n", resp.OppDesc)
 		*showInfo = false
 	}
+}
+
+func (a *app) StopGoRoutine() {
+	a.GoroutineStopper <- true
 }
