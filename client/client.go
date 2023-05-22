@@ -2,13 +2,11 @@ package client
 
 import (
 	"bufio"
-	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"
 	"log"
 	"net/http"
-	"net/url"
 	"os"
 	"regexp"
 	"strings"
@@ -64,20 +62,11 @@ func (c *client) InitGame() error {
 		return err
 	}
 
-	url, err := url.JoinPath(c.serverAddr, "/api/game")
+	resp, err := c.doRequest("/api/game", "POST", jsonBody)
 	if err != nil {
 		return err
 	}
 
-	req, err := http.NewRequest("POST", url, bytes.NewBuffer(jsonBody))
-	if err != nil {
-		return err
-	}
-
-	resp, err := c.client.Do(req)
-	if err != nil {
-		return err
-	}
 	if resp.StatusCode != 200 {
 		body, err := io.ReadAll(resp.Body)
 		if err != nil {
@@ -91,18 +80,7 @@ func (c *client) InitGame() error {
 }
 
 func (c *client) Board() ([]string, error) {
-	url, err := url.JoinPath(c.serverAddr, "/api/game/board")
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest("GET", url, nil)
-	if err != nil {
-		return nil, err
-	}
-
-	req.Header.Set("X-Auth-Token", c.token)
-	resp, err := c.client.Do(req)
+	resp, err := c.doRequest("/api/game/board", "GET", nil)
 	if err != nil {
 		return nil, err
 	}
@@ -135,22 +113,10 @@ func setBoardConfig(c *client) {
 }
 
 func (c *client) Status() (*app.StatusResponse, error) {
-	url, err := url.JoinPath(c.serverAddr, "/api/game")
+	resp, err := c.doRequest("/api/game", "GET", nil)
 	if err != nil {
 		return nil, err
 	}
-
-	req, err := http.NewRequest("GET", url, nil)
-	if err != nil {
-		return nil, err
-	}
-
-	req.Header.Set("X-Auth-Token", c.token)
-	resp, err := c.client.Do(req)
-	if err != nil {
-		return nil, err
-	}
-
 	defer resp.Body.Close()
 
 	body, err := io.ReadAll(resp.Body)
@@ -179,27 +145,11 @@ func (c *client) UpdateBoard(status *app.StatusResponse) {
 }
 
 func (c *client) RefreshSession() {
-	url, err := url.JoinPath(c.serverAddr, "/api/game/refresh")
-	if err != nil {
-		return
-	}
-
-	req, err := http.NewRequest("GET", url, nil)
-	if err != nil {
-		return
-	}
-
-	req.Header.Set("X-Auth-Token", c.token)
-	resp, err := c.client.Do(req)
-	if err != nil {
-		return
-	}
-
+	resp, _ := c.doRequest("/api/game/refresh", "GET", nil)
 	if resp.StatusCode != 200 {
 		log.Print(resp.StatusCode)
 	}
 	defer resp.Body.Close()
-
 }
 
 func (c *client) Fire() error {
@@ -214,21 +164,11 @@ func (c *client) Fire() error {
 	if err != nil {
 		return err
 	}
-	url, err := url.JoinPath(c.serverAddr, "/api/game/fire")
+	resp, err := c.doRequest("/api/game/fire", "POST", reqData)
 	if err != nil {
 		return err
 	}
-
-	req, err := http.NewRequest("POST", url, bytes.NewBuffer(reqData))
-	if err != nil {
-		return err
-	}
-
-	req.Header.Set("X-Auth-Token", c.token)
-	resp, err := c.client.Do(req)
-	if err != nil {
-		return err
-	}
+	defer resp.Body.Close()
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
@@ -272,18 +212,7 @@ func waitForValidInput(c *client) string {
 }
 
 func (c *client) CheckOpponentsDesc() (*app.StatusResponse, error) {
-	url, err := url.JoinPath(c.serverAddr, "/api/game/desc")
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest("GET", url, nil)
-	if err != nil {
-		return nil, err
-	}
-
-	req.Header.Set("X-Auth-Token", c.token)
-	resp, err := c.client.Do(req)
+	resp, err := c.doRequest("/api/game/desc", "GET", nil)
 	if err != nil {
 		return nil, err
 	}
@@ -304,11 +233,7 @@ func (c *client) CheckOpponentsDesc() (*app.StatusResponse, error) {
 }
 
 func (c *client) GetActivePlayersList() error {
-	url, err := url.JoinPath(c.serverAddr, "/api/lobby")
-	if err != nil {
-		return err
-	}
-	resp, err := http.Get(url)
+	resp, err := c.doRequest("/api/lobby", "GET", nil)
 	if err != nil {
 		return err
 	}
