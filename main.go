@@ -15,6 +15,7 @@ const (
 func main() {
 	app := app.New(client.New(warshipServerAddr, clientTimeout))
 	if err := app.Run(); err != nil {
+		app.StopGoRoutine()
 		panic(err)
 	}
 }
