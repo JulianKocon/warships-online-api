@@ -3,6 +3,7 @@ package client
 import (
 	"bufio"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -49,6 +50,9 @@ func New(addr string, t time.Duration) *client {
 }
 
 func (c *client) InitGame() error {
+	if !c.IsNickAvailable() {
+		return errors.New("nick is not available")
+	}
 
 	initBody := app.BasicRequestBody{
 		Wpbot:      *flags.WpbotFlag,
@@ -112,6 +116,11 @@ func setBoardConfig(c *client) {
 	c.board = gui.New(cfg)
 }
 
+func (c *client) IsNickAvailable() bool {
+	c.GetActivePlayersList()
+	return !strings.Contains(strings.Join(app.ActiveOpponents, " "), *flags.NickFlag)
+}
+
 func (c *client) Status() (*app.StatusResponse, error) {
 	resp, err := c.doRequest("/api/game", "GET", nil)
 	if err != nil {
@@ -147,7 +156,7 @@ func (c *client) UpdateBoard(status *app.StatusResponse) {
 func (c *client) RefreshSession() {
 	resp, _ := c.doRequest("/api/game/refresh", "GET", nil)
 	if resp.StatusCode != 200 {
-		log.Print(resp.StatusCode)
+		fmt.Print("Refresh session failed: " + resp.Status)
 	}
 	defer resp.Body.Close()
 }
@@ -203,7 +212,7 @@ func (c *client) Fire() error {
 func waitForValidInput(c *client) string {
 	input, _ := c.reader.ReadString('\n')
 	input = strings.TrimSpace(input)
-	pattern := regexp.MustCompile(`[A-J][1-9]|10`)
+	pattern := regexp.MustCompile(`^[A-J]([1-9]|10)$`)
 	if !pattern.MatchString(input) {
 		fmt.Print(gui.ErrInvalidCoord, "\nType again:")
 		waitForValidInput(c)
@@ -250,6 +259,7 @@ func (c *client) GetActivePlayersList() error {
 	}
 
 	for _, opponent := range waitingPlayer {
+		fmt.Print(opponent.Nick, "\n", opponent.GameStatus, "\n")
 		if opponent.GameStatus == "waiting" {
 			opponent := opponent.Nick
 			app.ActiveOpponents = append(app.ActiveOpponents, opponent)
@@ -257,9 +267,9 @@ func (c *client) GetActivePlayersList() error {
 	}
 
 	if len(waitingPlayer) == 0 {
-		log.Println("No active players")
+		fmt.Println("No active players")
 	} else {
-		log.Println("Active players:")
+		fmt.Println("Active players:")
 		for _, item := range waitingPlayer {
 			log.Println(item.Nick)
 		}

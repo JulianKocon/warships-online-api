@@ -3,7 +3,6 @@ package app
 import (
 	"fmt"
 	"log"
-	"os"
 	"time"
 
 	"main.go/flags"
@@ -58,14 +57,11 @@ var (
 )
 
 func (a *app) Run() error {
-	flags.LoadFlags()
-	if err := flags.ValidateFlags(); err != nil {
-		return err
-	}
 	if !*flags.WpbotFlag {
 		go a.refreshList(a.GoroutineStopper)
 		a.c.WaitForValidOpponent()
 	}
+
 	if err := a.c.InitGame(); err != nil {
 		return err
 	}
@@ -76,17 +72,26 @@ func (a *app) Run() error {
 
 func (a *app) refreshList(stopper <-chan bool) error {
 	t := time.NewTicker(time.Second * 5)
-	switch {
-	case <-stopper:
-		t.Stop()
-		return nil
-	default:
-		for range t.C {
+	defer t.Stop()
+	fmt.Println("Refreshing list of active players")
+
+	if err := a.c.GetActivePlayersList(); err != nil {
+		log.Println("Error while refreshing list of active players")
+		return err
+	}
+
+	for {
+		select {
+		case <-stopper:
+			log.Println("Stopped refreshing list of active players")
+			return nil
+		case <-t.C:
 			if err := a.c.GetActivePlayersList(); err != nil {
+				fmt.Println("Error while refreshing list of active players")
 				return err
 			}
+			fmt.Print("Type opponent's name: ")
 		}
-		return nil
 	}
 }
 
@@ -111,7 +116,8 @@ func (a *app) checkStatus() {
 			}
 		case "ended":
 			fmt.Print("You ", resp.LastGameStatus, "!!!")
-			os.Exit(1)
+			a.StopGoRoutines()
+			return
 		}
 	}
 }
@@ -145,6 +151,6 @@ func (a *app) showGameInfoOnce(resp *StatusResponse, showInfo *bool) {
 	}
 }
 
-func (a *app) StopGoRoutine() {
+func (a *app) StopGoRoutines() {
 	a.GoroutineStopper <- true
 }
