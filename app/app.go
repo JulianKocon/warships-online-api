@@ -35,7 +35,8 @@ type client interface {
 	RefreshSession()
 	Fire() error
 	CheckOpponentsDesc() (*StatusResponse, error)
-	GetActivePlayersList() error
+	GetWaitingOpponents() ([]OnlineOpponent, error)
+	GetOnlineOpponents() ([]OnlineOpponent, error)
 	WaitForValidOpponent() string
 	ShowAccuracy()
 }
@@ -52,13 +53,18 @@ func New(c client) *app {
 	}
 }
 
+type OnlineOpponent struct {
+	GameStatus string `json:"game_status"`
+	Nick       string `json:"nick"`
+}
+
 var (
-	ActiveOpponents []string
+	WaitingOpponents []OnlineOpponent
 )
 
 func (a *app) Run() error {
-	if !*flags.WpbotFlag {
-		go a.refreshList(a.GoroutineStopper)
+	if !*flags.WpbotFlag && *flags.TargetNickFlag == "" {
+		go a.refreshWaitingPlayersList(a.GoroutineStopper)
 		a.c.WaitForValidOpponent()
 	}
 
@@ -70,13 +76,12 @@ func (a *app) Run() error {
 	return nil
 }
 
-func (a *app) refreshList(stopper <-chan bool) error {
+func (a *app) refreshWaitingPlayersList(stopper <-chan bool) error {
 	t := time.NewTicker(time.Second * 5)
 	defer t.Stop()
 	fmt.Println("Refreshing list of active players")
 
-	if err := a.c.GetActivePlayersList(); err != nil {
-		log.Println("Error while refreshing list of active players")
+	if err := showWaitingOpponents(a); err != nil {
 		return err
 	}
 
@@ -86,13 +91,26 @@ func (a *app) refreshList(stopper <-chan bool) error {
 			log.Println("Stopped refreshing list of active players")
 			return nil
 		case <-t.C:
-			if err := a.c.GetActivePlayersList(); err != nil {
-				fmt.Println("Error while refreshing list of active players")
+			if err := showWaitingOpponents(a); err != nil {
 				return err
 			}
-			fmt.Print("Type opponent's name: ")
 		}
 	}
+}
+
+func showWaitingOpponents(a *app) error {
+	WaitingOpponents, err := a.c.GetWaitingOpponents()
+	if err != nil {
+		log.Println("Error while refreshing list of waiting opponents")
+		return err
+	}
+	if len(WaitingOpponents) == 0 {
+		fmt.Println("No active opponents")
+	} else {
+		fmt.Printf("Active opponents: %s\n", WaitingOpponents)
+		fmt.Println("Type opponent's name: ")
+	}
+	return nil
 }
 
 func (a *app) checkStatus() {

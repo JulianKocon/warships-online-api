@@ -34,11 +34,6 @@ type client struct {
 	shots      shots
 }
 
-type waitingPlayer struct {
-	GameStatus string `json:"game_status"`
-	Nick       string `json:"nick"`
-}
-
 func New(addr string, t time.Duration) *client {
 	return &client{
 		client: &http.Client{
@@ -50,7 +45,12 @@ func New(addr string, t time.Duration) *client {
 }
 
 func (c *client) InitGame() error {
-	if !c.IsNickAvailable() {
+	isNickAvailable, err := c.IsNickAvailable()
+	if err != nil {
+		return err
+	}
+
+	if !isNickAvailable {
 		return errors.New("nick is not available")
 	}
 
@@ -116,9 +116,24 @@ func setBoardConfig(c *client) {
 	c.board = gui.New(cfg)
 }
 
-func (c *client) IsNickAvailable() bool {
-	c.GetActivePlayersList()
-	return !strings.Contains(strings.Join(app.ActiveOpponents, " "), *flags.NickFlag)
+func (c *client) IsNickAvailable() (bool, error) {
+	for _, opponent := range app.WaitingOpponents {
+		if opponent.Nick == *flags.NickFlag {
+			return false, nil
+		}
+	}
+
+	waitingOpponents, err := c.GetWaitingOpponents()
+	app.WaitingOpponents = waitingOpponents
+	if err != nil {
+		return false, err
+	}
+	for _, player := range app.WaitingOpponents {
+		if player.Nick == *flags.NickFlag && player.GameStatus == "waiting" {
+			return false, nil
+		}
+	}
+	return true, nil
 }
 
 func (c *client) Status() (*app.StatusResponse, error) {
@@ -241,47 +256,44 @@ func (c *client) CheckOpponentsDesc() (*app.StatusResponse, error) {
 	return gameStatusResponse, nil
 }
 
-func (c *client) GetActivePlayersList() error {
+func (c *client) GetOnlineOpponents() ([]app.OnlineOpponent, error) {
 	resp, err := c.doRequest("/api/lobby", "GET", nil)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	defer resp.Body.Close()
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	var waitingPlayer []waitingPlayer
-	if err := json.Unmarshal([]byte(body), &waitingPlayer); err != nil {
-		return err
+	var onlineOpponents []app.OnlineOpponent
+	if err := json.Unmarshal([]byte(body), &onlineOpponents); err != nil {
+		return nil, err
 	}
 
-	for _, opponent := range waitingPlayer {
-		fmt.Print(opponent.Nick, "\n", opponent.GameStatus, "\n")
+	return onlineOpponents, nil
+}
+
+func (c *client) GetWaitingOpponents() ([]app.OnlineOpponent, error) {
+	opponentStatuses, err := c.GetOnlineOpponents()
+	if err != nil {
+		return nil, err
+	}
+	var waitingOpponents []app.OnlineOpponent
+	for _, opponent := range opponentStatuses {
 		if opponent.GameStatus == "waiting" {
-			opponent := opponent.Nick
-			app.ActiveOpponents = append(app.ActiveOpponents, opponent)
+			waitingOpponents = append(waitingOpponents, opponent)
 		}
 	}
-
-	if len(waitingPlayer) == 0 {
-		fmt.Println("No active players")
-	} else {
-		fmt.Println("Active players:")
-		for _, item := range waitingPlayer {
-			log.Println(item.Nick)
-		}
-	}
-
-	return nil
+	return waitingOpponents, nil
 }
 
 func (c *client) WaitForValidOpponent() string {
 	input, _ := c.reader.ReadString('\n')
-	for _, opponent := range app.ActiveOpponents {
-		if opponent == input {
+	for _, opponent := range app.WaitingOpponents {
+		if opponent.GameStatus == "waiting" && opponent.Nick == input {
 			return input
 		}
 	}
