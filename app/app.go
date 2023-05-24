@@ -39,6 +39,7 @@ type client interface {
 	GetOnlineOpponents() ([]OnlineOpponent, error)
 	WaitForValidOpponent() string
 	ShowAccuracy()
+	Abandon()
 }
 
 type app struct {
@@ -122,19 +123,23 @@ func (a *app) checkStatus() {
 		if err != nil {
 			log.Fatal(err)
 		}
-		switch resp.GameStatus {
-		case "game_in_progress":
-			{
-				if resp.ShouldFire {
-					a.showGameInfoOnce(resp, &showInfo)
-					if err := a.c.Fire(); err != nil {
-						log.Fatal(err)
-					}
+
+		if resp.GameStatus == "game_in_progress" && resp.ShouldFire {
+			a.showGameInfoOnce(resp, &showInfo)
+			if err := a.c.Fire(); err != nil {
+				if err.Error() == "abandon" {
+					resp.LastGameStatus = "abandoned"
+					resp.GameStatus = "ended"
+				} else {
+					log.Fatal(err)
 				}
 			}
-		case "ended":
+		}
+
+		if resp.GameStatus == "ended" {
 			fmt.Print("You ", resp.LastGameStatus, "!!!")
 			a.StopGoRoutines()
+			fmt.Println("Restarting game in 30 seconds")
 			return
 		}
 	}
@@ -142,13 +147,13 @@ func (a *app) checkStatus() {
 
 func (a *app) refreshToken(stopper <-chan bool) {
 	t := time.NewTicker(time.Second * 10)
-
-	select {
-	case <-stopper:
-		t.Stop()
-		return
-	default:
-		for range t.C {
+	defer t.Stop()
+	for {
+		select {
+		case <-stopper:
+			log.Println("Stopped refreshing token")
+			return
+		case <-t.C:
 			a.c.RefreshSession()
 		}
 	}

@@ -179,8 +179,10 @@ func (c *client) RefreshSession() {
 func (c *client) Fire() error {
 	c.ShowAccuracy()
 	fmt.Print("It's your turn:")
-	input := waitForValidInput(c)
-
+	input, err := waitForValidInput(c)
+	if err != nil {
+		return err
+	}
 	reqBody := map[string]string{
 		"coord": input,
 	}
@@ -224,15 +226,19 @@ func (c *client) Fire() error {
 	return nil
 }
 
-func waitForValidInput(c *client) string {
+func waitForValidInput(c *client) (string, error) {
 	input, _ := c.reader.ReadString('\n')
 	input = strings.TrimSpace(input)
+	if input == "abandon" {
+		c.Abandon()
+		return "", errors.New("abandon")
+	}
 	pattern := regexp.MustCompile(`^[A-J]([1-9]|10)$`)
 	if !pattern.MatchString(input) {
 		fmt.Print(gui.ErrInvalidCoord, "\nType again:")
 		waitForValidInput(c)
 	}
-	return input
+	return input, nil
 }
 
 func (c *client) CheckOpponentsDesc() (*app.StatusResponse, error) {
@@ -308,4 +314,12 @@ func (c *client) ShowAccuracy() {
 	}
 	accuracy := float64(c.shots.hits) / float64(c.shots.hits+c.shots.misses) * 100
 	log.Printf("Accuracy: %.2f%%", accuracy)
+}
+
+func (c *client) Abandon() {
+	resp, err := c.doRequest("/api/game/abandon", "DELETE", nil)
+	if err != nil {
+		log.Print(err)
+	}
+	defer resp.Body.Close()
 }
