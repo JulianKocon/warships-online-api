@@ -10,7 +10,8 @@
             "request": "launch",
             "mode": "auto",
             "program": "main.go",
-            "args": ["-nick", "Nick", "-wpbot"]
+            "args": ["-nick", "Nick", "-wpbot"],
+            "console": "integratedTerminal"
         },
         {
             "name": "Launch without bot",
@@ -18,7 +19,17 @@
             "request": "launch",
             "mode": "auto",
             "program": "main.go",
-            "args": ["-nick", "Nick"]
+            "args": ["-nick", "Nick"],
+            "console": "integratedTerminal"
+        },
+        {
+            "name": "Launch while waiting",
+            "type": "go",
+            "request": "launch",
+            "mode": "auto",
+            "program": "main.go",
+            "args": ["-nick", "Nick", "-wait"],
+            "console": "integratedTerminal"
         }
     ]
 }
