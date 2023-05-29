@@ -178,7 +178,7 @@ func (c *client) RefreshSession() {
 
 func (c *client) Fire() error {
 	c.ShowAccuracy()
-	fmt.Print("It's your turn:")
+	fmt.Println("It's your turn:")
 	input, err := waitForValidInput(c)
 	if err != nil {
 		return err
@@ -308,12 +308,11 @@ func (c *client) WaitForValidOpponent() string {
 }
 
 func (c *client) ShowAccuracy() {
-	if c.shots.hits == 0 && c.shots.misses == 0 {
-		log.Println("Accuracy: 0%")
-		return
+	accuracy := 0.0
+	if c.shots.hits != 0 || c.shots.misses != 0 {
+		accuracy = float64(c.shots.hits) / float64(c.shots.hits+c.shots.misses) * 100
 	}
-	accuracy := float64(c.shots.hits) / float64(c.shots.hits+c.shots.misses) * 100
-	log.Printf("Accuracy: %.2f%%", accuracy)
+	fmt.Printf("Accuracy: %.2f%%\n", accuracy)
 }
 
 func (c *client) Abandon() {
