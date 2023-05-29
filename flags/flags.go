@@ -10,6 +10,7 @@ var (
 	DescFlag       *string
 	TargetNickFlag *string
 	WpbotFlag      *bool
+	WaitingFlag    *bool
 )
 
 func LoadFlags() {
@@ -17,12 +18,23 @@ func LoadFlags() {
 	NickFlag = flag.String("nick", "", "Specify your nickname")
 	DescFlag = flag.String("desc", "", "Specify your description")
 	WpbotFlag = flag.Bool("wpbot", false, "Specify if you want to play with WP bot")
+	WaitingFlag = flag.Bool("wait", false, "Specify if you want to wait to be challenged")
 	flag.Parse()
 }
 
 func ValidateFlags() error {
 	if err := ValidateNick(); err != nil {
 		return err
+	}
+	if err := ValidateExluciveFlags(); err != nil {
+		return err
+	}
+	return nil
+}
+
+func ValidateExluciveFlags() error {
+	if *WpbotFlag && *WaitingFlag {
+		return errors.New("wpbot flag and waiting flag are mutually exclusive")
 	}
 	return nil
 }

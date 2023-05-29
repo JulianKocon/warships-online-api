@@ -81,7 +81,6 @@ func (a *app) Run() error {
 		}
 	}
 
-	//obsluż przerwanie gry po 60 sekundach
 	isNickAvailable, err := a.IsNickAvailable()
 	if err != nil {
 		return err
