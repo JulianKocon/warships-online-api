@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"time"
 
 	"main.go/app"
@@ -15,12 +16,12 @@ const (
 func main() {
 
 	for {
-		app := app.New(client.New(warshipServerAddr, clientTimeout))
+		ctx, cancel := context.WithCancel(context.Background())
+		app := app.New(ctx, client.New(warshipServerAddr, clientTimeout))
+		defer cancel()
 		if err := app.Run(); err != nil {
-			app.StopGoRoutines()
 			panic(err)
 		}
-		app.StopGoRoutines()
 		time.Sleep(time.Second * 30)
 	}
 }

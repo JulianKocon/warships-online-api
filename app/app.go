@@ -1,6 +1,7 @@
 package app
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"log"
@@ -44,16 +45,16 @@ type client interface {
 }
 
 type app struct {
+	ctx                       context.Context
 	c                         client
-	GoroutineStopper          chan bool
 	RefreshWaitingListStopper chan bool
 	WaitingOpponents          []WaitingOpponent
 }
 
-func New(c client) *app {
+func New(ctx context.Context, c client) *app {
 	return &app{
+		ctx,
 		c,
-		make(chan bool, 1),
 		make(chan bool, 1),
 		[]WaitingOpponent{},
 	}
@@ -97,7 +98,7 @@ func (a *app) Run() error {
 	return nil
 }
 
-func (a *app) refreshWaitingPlayersList(stopper <-chan bool) error {
+func (a *app) refreshWaitingPlayersList(stopChannel <-chan bool) error {
 	t := time.NewTicker(time.Second * 5)
 	defer t.Stop()
 	fmt.Println("Refreshing list of active players")
@@ -108,7 +109,7 @@ func (a *app) refreshWaitingPlayersList(stopper <-chan bool) error {
 
 	for {
 		select {
-		case <-stopper:
+		case <-stopChannel:
 			log.Println("Stopped refreshing list of active players")
 			return nil
 		case <-t.C:
@@ -139,7 +140,7 @@ func (a *app) showWaitingOpponents() (err error) {
 
 func (a *app) checkStatus() {
 	showInfo := true
-	go a.refreshToken(a.GoroutineStopper)
+	go a.refreshToken(a.ctx)
 	for {
 		time.Sleep(1 * time.Second)
 		resp, err := a.c.Status()
@@ -161,19 +162,18 @@ func (a *app) checkStatus() {
 
 		if resp.GameStatus == "ended" {
 			fmt.Print("You ", resp.LastGameStatus, "!!!")
-			a.StopGoRoutines()
 			fmt.Println("Restarting game in 30 seconds")
 			return
 		}
 	}
 }
 
-func (a *app) refreshToken(stopper <-chan bool) {
+func (a *app) refreshToken(ctx context.Context) {
 	t := time.NewTicker(time.Second * 10)
 	defer t.Stop()
 	for {
 		select {
-		case <-stopper:
+		case <-ctx.Done():
 			log.Println("Stopped refreshing token")
 			return
 		case <-t.C:
@@ -195,10 +195,6 @@ func (a *app) showGameInfoOnce(resp *StatusResponse, showInfo *bool) {
 		fmt.Printf("Opponent's description : %v \n", resp.OppDesc)
 		*showInfo = false
 	}
-}
-
-func (a *app) StopGoRoutines() {
-	a.GoroutineStopper <- true
 }
 
 func (a *app) WaitForValidOpponent() (bool, error) {
