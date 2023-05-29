@@ -83,7 +83,7 @@ func (c *client) InitGame() error {
 	return nil
 }
 
-func (c *client) Board() ([]string, error) {
+func (c *client) Board() (map[string][]string, error) {
 	resp, err := c.doRequest("/api/game/board", "GET", nil)
 	if err != nil {
 		return nil, err
@@ -100,10 +100,11 @@ func (c *client) Board() ([]string, error) {
 		return nil, err
 	}
 
-	setBoardConfig(c)
+	/* setBoardConfig(c)
 	c.board.Import(boardData["board"])
 	c.board.Display()
-	return c.board.Export(gui.Left), nil
+	return c.board.Export(gui.Left), nil */
+	return boardData, nil
 }
 
 func setBoardConfig(c *client) {

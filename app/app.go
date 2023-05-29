@@ -5,6 +5,7 @@ import (
 	"log"
 	"time"
 
+	"main.go/board"
 	"main.go/flags"
 )
 
@@ -71,7 +72,7 @@ func (a *app) Run() error {
 	if err := a.c.InitGame(); err != nil {
 		return err
 	}
-	a.c.Board()
+	//a.c.Board()
 	a.checkStatus()
 	return nil
 }
@@ -160,7 +161,8 @@ func (a *app) showGameInfoOnce(resp *StatusResponse, showInfo *bool) {
 		if err != nil {
 			log.Fatal(err)
 		}
-		a.c.UpdateBoard(resp)
+		board.CreateBoards(resp.Nick, resp.Desc, resp.Opponent, resp.OppDesc)
+		///a.c.UpdateBoard(resp)
 		fmt.Printf("Nick: %v \n", resp.Nick)
 		fmt.Printf("Description: %v \n", resp.Desc)
 		fmt.Printf("Opponent: %v \n", resp.Opponent)
