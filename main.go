@@ -5,7 +5,6 @@ import (
 
 	"main.go/app"
 	"main.go/client"
-	"main.go/flags"
 )
 
 const (
@@ -14,10 +13,6 @@ const (
 )
 
 func main() {
-	flags.LoadFlags()
-	if err := flags.ValidateFlags(); err != nil {
-		panic(err)
-	}
 
 	for {
 		app := app.New(client.New(warshipServerAddr, clientTimeout))

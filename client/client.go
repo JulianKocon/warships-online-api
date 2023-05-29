@@ -45,14 +45,6 @@ func New(addr string, t time.Duration) *client {
 }
 
 func (c *client) InitGame() error {
-	isNickAvailable, err := c.IsNickAvailable()
-	if err != nil {
-		return err
-	}
-
-	if !isNickAvailable {
-		return errors.New("nick is not available")
-	}
 
 	initBody := app.BasicRequestBody{
 		Wpbot:      *flags.WpbotFlag,
@@ -116,26 +108,6 @@ func setBoardConfig(c *client) {
 	c.board = gui.New(cfg)
 }
 
-func (c *client) IsNickAvailable() (bool, error) {
-	for _, opponent := range app.WaitingOpponents {
-		if opponent.Nick == *flags.NickFlag {
-			return false, nil
-		}
-	}
-
-	waitingOpponents, err := c.GetWaitingOpponents()
-	app.WaitingOpponents = waitingOpponents
-	if err != nil {
-		return false, err
-	}
-	for _, player := range app.WaitingOpponents {
-		if player.Nick == *flags.NickFlag && player.GameStatus == "waiting" {
-			return false, nil
-		}
-	}
-	return true, nil
-}
-
 func (c *client) Status() (*app.StatusResponse, error) {
 	resp, err := c.doRequest("/api/game", "GET", nil)
 	if err != nil {
@@ -170,9 +142,9 @@ func (c *client) UpdateBoard(status *app.StatusResponse) {
 
 func (c *client) RefreshSession() {
 	resp, _ := c.doRequest("/api/game/refresh", "GET", nil)
-	if resp.StatusCode != 200 {
-		fmt.Print("Refresh session failed: " + resp.Status)
-	}
+	// if resp.StatusCode != 200 {
+	// 	fmt.Print("Refresh session failed: " + resp.Status)
+	// }
 	defer resp.Body.Close()
 }
 
@@ -262,7 +234,7 @@ func (c *client) CheckOpponentsDesc() (*app.StatusResponse, error) {
 	return gameStatusResponse, nil
 }
 
-func (c *client) GetOnlineOpponents() ([]app.OnlineOpponent, error) {
+func (c *client) GetOnlineOpponents() ([]app.WaitingOpponent, error) {
 	resp, err := c.doRequest("/api/lobby", "GET", nil)
 	if err != nil {
 		return nil, err
@@ -274,7 +246,7 @@ func (c *client) GetOnlineOpponents() ([]app.OnlineOpponent, error) {
 		return nil, err
 	}
 
-	var onlineOpponents []app.OnlineOpponent
+	var onlineOpponents []app.WaitingOpponent
 	if err := json.Unmarshal([]byte(body), &onlineOpponents); err != nil {
 		return nil, err
 	}
@@ -282,29 +254,18 @@ func (c *client) GetOnlineOpponents() ([]app.OnlineOpponent, error) {
 	return onlineOpponents, nil
 }
 
-func (c *client) GetWaitingOpponents() ([]app.OnlineOpponent, error) {
+func (c *client) GetWaitingOpponents() ([]app.WaitingOpponent, error) {
 	opponentStatuses, err := c.GetOnlineOpponents()
 	if err != nil {
 		return nil, err
 	}
-	var waitingOpponents []app.OnlineOpponent
+	var waitingOpponents []app.WaitingOpponent
 	for _, opponent := range opponentStatuses {
 		if opponent.GameStatus == "waiting" {
 			waitingOpponents = append(waitingOpponents, opponent)
 		}
 	}
 	return waitingOpponents, nil
-}
-
-func (c *client) WaitForValidOpponent() string {
-	input, _ := c.reader.ReadString('\n')
-	for _, opponent := range app.WaitingOpponents {
-		if opponent.GameStatus == "waiting" && opponent.Nick == input {
-			return input
-		}
-	}
-	log.Print("Invalid opponent. Type again:")
-	return c.WaitForValidOpponent()
 }
 
 func (c *client) ShowAccuracy() {
@@ -321,4 +282,13 @@ func (c *client) Abandon() {
 		log.Print(err)
 	}
 	defer resp.Body.Close()
+}
+
+func (c *client) ReadInput() (string, error) {
+	input, err := c.reader.ReadString('\n')
+	if err != nil {
+		return "", err
+	}
+	input = strings.TrimSpace(input)
+	return input, nil
 }

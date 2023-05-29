@@ -1,6 +1,7 @@
 package app
 
 import (
+	"errors"
 	"fmt"
 	"log"
 	"time"
@@ -35,38 +36,57 @@ type client interface {
 	RefreshSession()
 	Fire() error
 	CheckOpponentsDesc() (*StatusResponse, error)
-	GetWaitingOpponents() ([]OnlineOpponent, error)
-	GetOnlineOpponents() ([]OnlineOpponent, error)
-	WaitForValidOpponent() string
+	GetWaitingOpponents() ([]WaitingOpponent, error)
+	GetOnlineOpponents() ([]WaitingOpponent, error)
 	ShowAccuracy()
 	Abandon()
+	ReadInput() (string, error)
 }
 
 type app struct {
-	c                client
-	GoroutineStopper chan bool
+	c                         client
+	GoroutineStopper          chan bool
+	RefreshWaitingListStopper chan bool
+	WaitingOpponents          []WaitingOpponent
 }
 
 func New(c client) *app {
 	return &app{
 		c,
 		make(chan bool, 1),
+		make(chan bool, 1),
+		[]WaitingOpponent{},
 	}
 }
 
-type OnlineOpponent struct {
+type WaitingOpponent struct {
 	GameStatus string `json:"game_status"`
 	Nick       string `json:"nick"`
 }
 
-var (
-	WaitingOpponents []OnlineOpponent
-)
-
 func (a *app) Run() error {
-	if !*flags.WpbotFlag && *flags.TargetNickFlag == "" {
-		go a.refreshWaitingPlayersList(a.GoroutineStopper)
-		a.c.WaitForValidOpponent()
+	flags.LoadFlags()
+	if err := flags.ValidateFlags(); err != nil {
+		return err
+	}
+
+	if !*flags.WpbotFlag && *flags.TargetNickFlag == "" && !*flags.WaitingFlag {
+		go a.refreshWaitingPlayersList(a.RefreshWaitingListStopper)
+		isOpponentValid, err := a.WaitForValidOpponent()
+		if err != nil {
+			return err
+		}
+		if isOpponentValid {
+			a.RefreshWaitingListStopper <- true
+		}
+	}
+
+	isNickAvailable, err := a.IsNickAvailable()
+	if err != nil {
+		return err
+	}
+	if !isNickAvailable {
+		return errors.New("nick is not available")
 	}
 
 	if err := a.c.InitGame(); err != nil {
@@ -82,7 +102,7 @@ func (a *app) refreshWaitingPlayersList(stopper <-chan bool) error {
 	defer t.Stop()
 	fmt.Println("Refreshing list of active players")
 
-	if err := showWaitingOpponents(a); err != nil {
+	if err := a.showWaitingOpponents(); err != nil {
 		return err
 	}
 
@@ -92,23 +112,26 @@ func (a *app) refreshWaitingPlayersList(stopper <-chan bool) error {
 			log.Println("Stopped refreshing list of active players")
 			return nil
 		case <-t.C:
-			if err := showWaitingOpponents(a); err != nil {
+			if err := a.showWaitingOpponents(); err != nil {
 				return err
 			}
 		}
 	}
 }
 
-func showWaitingOpponents(a *app) error {
-	WaitingOpponents, err := a.c.GetWaitingOpponents()
+func (a *app) showWaitingOpponents() (err error) {
+	a.WaitingOpponents, err = a.c.GetWaitingOpponents()
 	if err != nil {
 		log.Println("Error while refreshing list of waiting opponents")
 		return err
 	}
-	if len(WaitingOpponents) == 0 {
+	if len(a.WaitingOpponents) == 0 {
 		fmt.Println("No active opponents")
 	} else {
-		fmt.Printf("Active opponents: %s\n", WaitingOpponents)
+		fmt.Printf("Active opponents: \n")
+		for _, opponent := range a.WaitingOpponents {
+			fmt.Println(opponent.Nick)
+		}
 		fmt.Println("Type opponent's name: ")
 	}
 	return nil
@@ -176,4 +199,37 @@ func (a *app) showGameInfoOnce(resp *StatusResponse, showInfo *bool) {
 
 func (a *app) StopGoRoutines() {
 	a.GoroutineStopper <- true
+}
+
+func (a *app) WaitForValidOpponent() (bool, error) {
+	input, err := a.c.ReadInput()
+	if err != nil {
+		return false, errors.New("error while reading input")
+	}
+	for _, opponent := range a.WaitingOpponents {
+		if opponent.GameStatus == "waiting" && opponent.Nick == input {
+			return true, nil
+		}
+	}
+	log.Print("Invalid opponent. Type again:")
+	return a.WaitForValidOpponent()
+}
+func (a *app) IsNickAvailable() (bool, error) {
+	for _, opponent := range a.WaitingOpponents {
+		if opponent.Nick == *flags.NickFlag {
+			return false, nil
+		}
+	}
+
+	waitingOpponents, err := a.c.GetWaitingOpponents()
+	a.WaitingOpponents = waitingOpponents
+	if err != nil {
+		return false, err
+	}
+	for _, player := range a.WaitingOpponents {
+		if player.Nick == *flags.NickFlag && player.GameStatus == "waiting" {
+			return false, nil
+		}
+	}
+	return true, nil
 }
