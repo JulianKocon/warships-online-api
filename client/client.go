@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"os"
 	"regexp"
+	"sort"
 	"strings"
 	"time"
 
@@ -282,6 +283,34 @@ func (c *client) Abandon() {
 		log.Print(err)
 	}
 	defer resp.Body.Close()
+}
+
+func (c *client) GetTopStatistics() ([]app.PlayerStatistics, error) {
+	resp, err := c.doRequest("/api/stats", "GET", nil)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	playersStatistics := struct {
+		Stats []app.PlayerStatistics `json:"stats"`
+	}{
+		Stats: []app.PlayerStatistics{},
+	}
+
+	if err := json.Unmarshal([]byte(body), &playersStatistics); err != nil {
+		return nil, err
+	}
+	sort.Slice(playersStatistics.Stats, func(i, j int) bool {
+		return playersStatistics.Stats[i].Rank > playersStatistics.Stats[j].Rank
+	})
+
+	return playersStatistics.Stats, nil
 }
 
 func (c *client) ReadInput() (string, error) {

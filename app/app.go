@@ -28,6 +28,13 @@ type BasicRequestBody struct {
 	TargetNick string   `json:"target_nick,omitempty"`
 	Wpbot      bool     `json:"wpbot,omitempty"`
 }
+type PlayerStatistics struct {
+	Games  int    `json:"games"`
+	Nick   string `json:"nick"`
+	Points int    `json:"points"`
+	Rank   int    `json:"rank"`
+	Wins   int    `json:"wins"`
+}
 
 type client interface {
 	InitGame() error
@@ -39,6 +46,7 @@ type client interface {
 	CheckOpponentsDesc() (*StatusResponse, error)
 	GetWaitingOpponents() ([]WaitingOpponent, error)
 	GetOnlineOpponents() ([]WaitingOpponent, error)
+	GetTopStatistics() ([]PlayerStatistics, error)
 	ShowAccuracy()
 	Abandon()
 	ReadInput() (string, error)
@@ -66,6 +74,7 @@ type WaitingOpponent struct {
 }
 
 func (a *app) Run() error {
+	a.c.GetTopStatistics()
 	flags.LoadFlags()
 	if err := flags.ValidateFlags(); err != nil {
 		return err
