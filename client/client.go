@@ -307,12 +307,36 @@ func (c *client) GetTopStatistics() ([]app.PlayerStatistics, error) {
 		return nil, err
 	}
 	sort.Slice(playersStatistics.Stats, func(i, j int) bool {
-		return playersStatistics.Stats[i].Rank > playersStatistics.Stats[j].Rank
+		return playersStatistics.Stats[i].Rank < playersStatistics.Stats[j].Rank
 	})
 
 	return playersStatistics.Stats, nil
 }
 
+func (c *client) GetStatistics(nick string) (app.PlayerStatistics, error) {
+	playerStatistics := struct {
+		Stats app.PlayerStatistics `json:"stats"`
+	}{
+		Stats: app.PlayerStatistics{},
+	}
+
+	resp, err := c.doRequest("/api/stats/"+nick, "GET", nil)
+	if err != nil {
+		return playerStatistics.Stats, err
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return playerStatistics.Stats, err
+	}
+
+	if err := json.Unmarshal([]byte(body), &playerStatistics); err != nil {
+		return playerStatistics.Stats, err
+	}
+
+	return playerStatistics.Stats, nil
+}
 func (c *client) ReadInput() (string, error) {
 	input, err := c.reader.ReadString('\n')
 	if err != nil {

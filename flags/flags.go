@@ -11,6 +11,8 @@ var (
 	TargetNickFlag *string
 	WpbotFlag      *bool
 	WaitingFlag    *bool
+	TopStatsFlag   *bool
+	StatsFlag      *string
 )
 
 func LoadFlags() {
@@ -19,6 +21,8 @@ func LoadFlags() {
 	DescFlag = flag.String("desc", "", "Specify your description")
 	WpbotFlag = flag.Bool("wpbot", false, "Specify if you want to play with WP bot")
 	WaitingFlag = flag.Bool("wait", false, "Specify if you want to wait to be challenged")
+	TopStatsFlag = flag.Bool("topstats", false, "Specify if you want to see top statistics")
+	StatsFlag = flag.String("stats", "", "Specify if you want to see certain player statistics")
 	flag.Parse()
 }
 

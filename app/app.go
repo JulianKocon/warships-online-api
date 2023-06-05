@@ -47,6 +47,7 @@ type client interface {
 	GetWaitingOpponents() ([]WaitingOpponent, error)
 	GetOnlineOpponents() ([]WaitingOpponent, error)
 	GetTopStatistics() ([]PlayerStatistics, error)
+	GetStatistics(nick string) (PlayerStatistics, error)
 	ShowAccuracy()
 	Abandon()
 	ReadInput() (string, error)
@@ -74,10 +75,17 @@ type WaitingOpponent struct {
 }
 
 func (a *app) Run() error {
-	a.c.GetTopStatistics()
-	flags.LoadFlags()
-	if err := flags.ValidateFlags(); err != nil {
-		return err
+	if *flags.TopStatsFlag {
+		if err := a.showTopStatistics(); err != nil {
+			return err
+		}
+		return nil
+	}
+	if *flags.StatsFlag != "" {
+		if err := a.showPlayerStatistics(*flags.StatsFlag); err != nil {
+			return err
+		}
+		return nil
 	}
 
 	if !*flags.WpbotFlag && *flags.TargetNickFlag == "" && !*flags.WaitingFlag {
@@ -156,7 +164,6 @@ func (a *app) checkStatus() {
 		if err != nil {
 			log.Fatal(err)
 		}
-
 		if resp.GameStatus == "game_in_progress" && resp.ShouldFire {
 			a.showGameInfoOnce(resp, &showInfo)
 			if err := a.c.Fire(); err != nil {
@@ -213,6 +220,7 @@ func (a *app) WaitForValidOpponent() (bool, error) {
 	}
 	for _, opponent := range a.WaitingOpponents {
 		if opponent.GameStatus == "waiting" && opponent.Nick == input {
+			*flags.TargetNickFlag = input
 			return true, nil
 		}
 	}
@@ -237,4 +245,32 @@ func (a *app) IsNickAvailable() (bool, error) {
 		}
 	}
 	return true, nil
+}
+
+func (a *app) showTopStatistics() error {
+	stats, err := a.c.GetTopStatistics()
+	if err != nil {
+		return err
+	}
+	fmt.Println("Top statistics:")
+	for _, stat := range stats {
+		fmt.Printf("%v. %v \n", stat.Rank, stat.Nick)
+		fmt.Printf("Points: %v \n", stat.Points)
+		fmt.Printf("Wins: %v \n", stat.Wins)
+		fmt.Printf("Games: %v \n", stat.Games)
+	}
+	return nil
+}
+
+func (a *app) showPlayerStatistics(name string) error {
+	stats, err := a.c.GetStatistics(name)
+	if err != nil {
+		return err
+	}
+	fmt.Printf("%v. %v \n", stats.Rank, stats.Nick)
+	fmt.Printf("Points: %v \n", stats.Points)
+	fmt.Printf("Wins: %v \n", stats.Wins)
+	fmt.Printf("Games: %v \n", stats.Games)
+
+	return nil
 }
